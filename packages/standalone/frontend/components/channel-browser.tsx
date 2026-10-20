@@ -81,7 +81,7 @@ export function ChannelBrowser({ rpc, summary }: { rpc: Rpc; summary: Summary & 
         <div className="ch-metric-body"><span className="ch-metric-label">{tr("本机账号", "Local accounts", "Akun lokal")}</span>
           <strong className="ch-metric-value">{statuses ? accounts : <span className="ch-skeleton" />}</strong></div></div>
       <div className="checkin-control"><span className="status-dot" /><span>{auto?.running ? tr("签到进行中", "Check-in running", "Check-in berlangsung") : auto?.ranToday ? tr("今日签到已执行", "Checked in today", "Sudah check-in hari ini") : tr("每日自动签到", "Daily auto check-in", "Check-in otomatis harian")}</span>
-        <button type="button" role="switch" aria-label="每日自动签到" aria-checked={auto?.enabled === true}
+        <button type="button" role="switch" aria-label={tr("每日自动签到", "Daily automatic check-in", "Check-in otomatis harian")} aria-checked={auto?.enabled === true}
           className={`ui-switch ${auto?.enabled ? 'on' : ''}`} disabled={!auto || busy} onClick={() => {
             setBusy(true)
             void rpc('usage.autoCheckin', { enabled: !auto?.enabled }).then(value => { if (mounted.current) setAuto(value.autoCheckin) })
@@ -101,7 +101,7 @@ export function ChannelBrowser({ rpc, summary }: { rpc: Rpc; summary: Summary & 
           <div className="detail-security-note"><ShieldCheck size={16} />{tr("沿用原渠道的登录、续期与额度规则。账号备份和供应商设置位于「供应商与备份」。", "Original channel sign-in, renewal, and quota rules apply. Account backups and provider settings are under Providers and backups.", "Aturan masuk, perpanjangan, dan kuota kanal asli tetap berlaku. Cadangan akun dan pengaturan penyedia ada di Penyedia dan cadangan.")}</div>
         </div></div>
     </div> : <>
-      <div className="channel-toolbar"><div className="channel-search"><Search size={17} /><Input aria-label="搜索渠道" placeholder="搜索渠道或供应商…" value={search} onChange={event => setSearch(event.target.value)} /></div>
+      <div className="channel-toolbar"><div className="channel-search"><Search size={17} /><Input aria-label={tr("搜索渠道", "Search channels", "Cari kanal")} placeholder={tr("搜索渠道或供应商…", "Search channels or providers…", "Cari kanal atau penyedia…")} value={search} onChange={event => setSearch(event.target.value)} /></div>
         <div className="channel-filters" aria-label="渠道状态筛选">{[['all', tr('全部渠道', 'All channels', 'Semua kanal')], ['connected', tr('已接入', 'Connected', 'Terhubung')], ['pending', tr('待接入', 'Not connected', 'Belum terhubung')]].map(([id, label]) =>
           <button key={id} aria-pressed={filter === id} disabled={id !== 'all' && !statuses} onClick={() => setFilter(id)}>{label}<span>{id === 'all' || statuses ? counts[id] : '—'}</span></button>)}</div>
       </div>

@@ -33,8 +33,8 @@ export function validateSettingsDraft(draft) {
   /** @type {Partial<Record<'defaultMaxTokens' | 'probeIntervalMinutes', string>>} */
   const errors = {}
   for (const [key, label, min, max] of [
-    ['defaultMaxTokens', '最大输出 Token', 512, 131072],
-    ['probeIntervalMinutes', '刷新间隔', 1, 1440],
+    ['defaultMaxTokens', 'Maximum output tokens', 512, 131072],
+    ['probeIntervalMinutes', 'Refresh interval', 1, 1440],
   ]) {
     const raw = draft[key].trim()
     const value = Number(raw)
