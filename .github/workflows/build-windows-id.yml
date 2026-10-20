@@ -1,0 +1,82 @@
+name: Windows Indonesian desktop
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [bahasa-indonesia]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-id-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Verify native toolchain
+        run: |
+          rustup default stable
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo --version
+          rustc --version
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'MSVC C++ tools are missing' }
+          Write-Output "MSVC installation: $vs"
+      - name: Install build dependencies without lifecycle scripts
+        run: |
+          npm install --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci --prefix packages/standalone --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci --prefix packages/desktop --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check frontend and build current localized assets
+        run: |
+          npm run typecheck:standalone
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check client.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/build-standalone-ui.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/build-standalone-ui.mjs --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix packages/desktop test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build Windows NSIS installer
+        env:
+          CI: 'true'
+        run: |
+          npm --prefix packages/desktop run build -- --bundles nsis
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify installer and record hashes
+        run: |
+          $files = @(Get-ChildItem packages/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe)
+          if ($files.Count -ne 1) { throw "Expected exactly one installer, got $($files.Count)" }
+          if ($files[0].Length -lt 1MB) { throw 'Installer is unexpectedly small' }
+          $hash = Get-FileHash $files[0].FullName -Algorithm SHA256
+          "$($hash.Hash)  $($files[0].Name)" | Set-Content -Encoding utf8 packages/desktop/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+          "Source commit: $env:GITHUB_SHA`nRun: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID`nCommunity localized build; not signed by the upstream publisher." | Set-Content -Encoding utf8 packages/desktop/src-tauri/target/release/bundle/nsis/BUILD-INFO.txt
+          $files | Format-List Name,Length
+          $hash | Format-List
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: our-free-model-windows-id
+          path: |
+            packages/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+            packages/desktop/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+            packages/desktop/src-tauri/target/release/bundle/nsis/BUILD-INFO.txt
+          if-no-files-found: error
+          retention-days: 14

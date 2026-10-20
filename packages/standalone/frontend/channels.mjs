@@ -2,12 +2,13 @@ import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { shared } from 'ofm-shared-client'
 import { ChannelBrowser } from './components/channel-browser'
+import { activeLocale, tr } from './locale'
 import 'ofm-shared-styles.css'
 
 const { EacAuth, useEacLogin, DICT, Tank, usePool, poolReading, capacityText, CHANNEL_PROVIDERS, LedgerPage, LogsPage } = shared
 const h = React.createElement
-const t = key => DICT.zh[key] ?? key
-t.locale = 'zh'
+const t = key => DICT[activeLocale()]?.[key] ?? DICT.zh[key] ?? key
+t.locale = activeLocale()
 let requestLifetime = new AbortController()
 const ctx = {
   connection: { rpc: {
@@ -20,14 +21,14 @@ const ctx = {
       const result = await response.json()
       lifetime.throwIfAborted()
       if (response.status === 401) window.dispatchEvent(new CustomEvent('ofm:unauthorized'))
-      if (!response.ok) throw new Error(result.error ?? '渠道请求失败')
+      if (!response.ok) throw new Error(result.error ?? tr('渠道请求失败', 'Channel request failed', 'Permintaan kanal gagal'))
       return result
     },
   } },
 }
 async function rpc(method, payload = {}) {
   const result = await ctx.connection.rpc.call('/api', 'channel-pack', { method, payload }, AbortSignal.timeout(180000))
-  if (!result.ok) throw new Error(result.error?.message ?? '渠道操作失败')
+  if (!result.ok) throw new Error(result.error?.message ?? tr('渠道操作失败', 'Channel action failed', 'Operasi kanal gagal'))
   return result.value
 }
 const lockedProviders = new Set(['buddy', 'workbuddy', 'loomy'])
@@ -68,7 +69,7 @@ function ChannelTools({ summary }) {
       await reload()
       window.dispatchEvent(new CustomEvent('ofm:channels'))
       summary.reload?.()
-      setMessage('已保存。')
+      setMessage(tr('已保存。', 'Saved.', 'Tersimpan.'))
     } catch (error) { setMessage(error.message) }
     finally { setBusy(false) }
   }
@@ -84,32 +85,32 @@ function ChannelTools({ summary }) {
     const selected = event.target.files[0]
     event.target.value = ''
     if (!selected) return
-    if (selected.size > 8 * 1024 * 1024) { setMessage('备份文件不能超过 8MB。'); return }
-    if (!window.confirm('导入会合并备份中的账号凭据、模型开关和积分锁定设置，确认继续吗？')) return
+    if (selected.size > 8 * 1024 * 1024) { setMessage(tr('备份文件不能超过 8MB。', 'Backup files cannot exceed 8 MB.', 'Berkas cadangan tidak boleh melebihi 8 MB.')); return }
+    if (!window.confirm(tr('导入会合并备份中的账号凭据、模型开关和积分锁定设置，确认继续吗？', 'Import merges account credentials, model switches, and credit locks from the backup. Continue?', 'Impor menggabungkan kredensial akun, sakelar model, dan kunci kredit dari cadangan. Lanjutkan?'))) return
     await run(async () => { await rpc('backup.import', { payload: JSON.parse(await selected.text()) }) })
   }
-  return h('section', { className: 'ofm_hero', 'aria-label': '供应商与数据管理' },
-    h('h3', null, '供应商与数据管理'),
+  return h('section', { className: 'ofm_hero', 'aria-label': tr('供应商与数据管理', 'Providers and data', 'Penyedia dan data') },
+    h('h3', null, tr('供应商与数据管理', 'Providers and data', 'Penyedia dan data')),
     h('div', { className: 'ofm_row' },
-      h('label', null, '供应商 ', h('select', { value: provider, disabled: busy, onChange: event => setProvider(event.target.value) },
+      h('label', null, tr('供应商 ', 'Provider ', 'Penyedia '), h('select', { value: provider, disabled: busy, onChange: event => setProvider(event.target.value) },
         CHANNEL_PROVIDERS.map(row => h('option', { value: row.id, key: row.id }, row.name)))),
       h('button', { className: 'ofm_btn', disabled: busy || !status, onClick: () => run(() => rpc('provider.setEnabled', { provider, enabled: status.closed === true })) },
-        status?.closed ? '启用供应商' : '关闭供应商'),
-      lock ? h('label', null, h('input', { type: 'checkbox', checked: lock.locked === true, disabled: busy, onChange: event => run(() => rpc('credits.permanentLock', { provider, locked: event.target.checked })) }), ' 锁定永久积分') : null),
-    lock ? h('p', { className: 'ofm_note' }, lock.windowDays ? `锁定后仅使用 ${lock.windowDays} 天内到期的积分；免费模型沿用原有豁免规则。` : '锁定后按原渠道规则保护永久积分。') : null,
+        status?.closed ? tr('启用供应商', 'Enable provider', 'Aktifkan penyedia') : tr('关闭供应商', 'Turn off provider', 'Matikan penyedia')),
+      lock ? h('label', null, h('input', { type: 'checkbox', checked: lock.locked === true, disabled: busy, onChange: event => run(() => rpc('credits.permanentLock', { provider, locked: event.target.checked })) }), tr(' 锁定永久积分', ' Lock permanent credits', ' Kunci kredit permanen')) : null),
+    lock ? h('p', { className: 'ofm_note' }, lock.windowDays ? tr(`锁定后仅使用 ${lock.windowDays} 天内到期的积分；免费模型沿用原有豁免规则。`, `Only credits expiring within ${lock.windowDays} days will be used; free models retain their exemption.`, `Hanya kredit yang kedaluwarsa dalam ${lock.windowDays} hari yang digunakan; model gratis tetap dikecualikan.`) : tr('锁定后按原渠道规则保护永久积分。', 'Permanent credits are protected according to the channel rules.', 'Kredit permanen dilindungi sesuai aturan kanal.')) : null,
     h('div', { className: 'ofm_row' },
-      h('label', null, '账号 ', h('select', { value: account, disabled: busy, onChange: event => { setAccount(event.target.value); setNickname(accounts.find(row => row.id === event.target.value)?.nickname ?? '') } },
-        h('option', { value: '' }, '选择账号'),
+      h('label', null, tr('账号 ', 'Account ', 'Akun '), h('select', { value: account, disabled: busy, onChange: event => { setAccount(event.target.value); setNickname(accounts.find(row => row.id === event.target.value)?.nickname ?? '') } },
+        h('option', { value: '' }, tr('选择账号', 'Select account', 'Pilih akun')),
         accounts.map(row => h('option', { value: row.id, key: row.id }, row.nickname ?? row.id)))),
-      h('input', { 'aria-label': '账号昵称', value: nickname, placeholder: '账号昵称', disabled: !account || busy, onChange: event => setNickname(event.target.value) }),
-      h('button', { className: 'ofm_btn', disabled: !account || busy, onClick: () => run(() => rpc('account.update', { accountId: account, patch: { nickname } })) }, '保存昵称'),
-      h('button', { className: 'ofm_btn', disabled: !account || busy, onClick: () => run(() => rpc('account.reorder', { provider, orderedIds: [account, ...accounts.filter(row => row.id !== account).map(row => row.id)] })) }, '优先使用'),
-      h('button', { className: 'ofm_btn', disabled: !account || busy, onClick: () => run(() => rpc('account.reset', { accountId: account })) }, '重置限流标记')),
+      h('input', { 'aria-label': tr('账号昵称', 'Account nickname', 'Nama panggilan akun'), value: nickname, placeholder: tr('账号昵称', 'Account nickname', 'Nama panggilan akun'), disabled: !account || busy, onChange: event => setNickname(event.target.value) }),
+      h('button', { className: 'ofm_btn', disabled: !account || busy, onClick: () => run(() => rpc('account.update', { accountId: account, patch: { nickname } })) }, tr('保存昵称', 'Save nickname', 'Simpan nama panggilan')),
+      h('button', { className: 'ofm_btn', disabled: !account || busy, onClick: () => run(() => rpc('account.reorder', { provider, orderedIds: [account, ...accounts.filter(row => row.id !== account).map(row => row.id)] })) }, tr('优先使用', 'Use first', 'Prioritaskan')),
+      h('button', { className: 'ofm_btn', disabled: !account || busy, onClick: () => run(() => rpc('account.reset', { accountId: account })) }, tr('重置限流标记', 'Reset rate-limit flag', 'Atur ulang penanda batas frekuensi'))),
     h('div', { className: 'ofm_row ofm_acts' },
-      h('button', { className: 'ofm_btn', disabled: busy, onClick: () => run(backup) }, '导出账号备份'),
-      h('button', { className: 'ofm_btn', disabled: busy, onClick: () => file.current.click() }, '导入账号备份'),
+      h('button', { className: 'ofm_btn', disabled: busy, onClick: () => run(backup) }, tr('导出账号备份', 'Export account backup', 'Ekspor cadangan akun')),
+      h('button', { className: 'ofm_btn', disabled: busy, onClick: () => file.current.click() }, tr('导入账号备份', 'Import account backup', 'Impor cadangan akun')),
       h('input', { ref: file, type: 'file', hidden: true, accept: '.json,application/json', onChange: importFile })),
-    h('p', { className: 'ofm_note' }, '备份包含登录凭据，请保存在可信的本地位置。插件导出的原格式备份也可以手动导入。'),
+    h('p', { className: 'ofm_note' }, tr('备份包含登录凭据，请保存在可信的本地位置。插件导出的原格式备份也可以手动导入。', 'Backups include sign-in credentials; store them in a trusted local location. Original plugin backups can also be imported manually.', 'Cadangan memuat kredensial masuk; simpan di lokasi lokal tepercaya. Cadangan format asli plugin juga dapat diimpor secara manual.')),
     message ? h('p', { role: 'status', className: 'ofm_note' }, message) : null)
 }
 
@@ -117,10 +118,10 @@ function ChannelConsole({ summary }) {
   const [page, setPage] = React.useState('accounts')
   return h(React.Fragment, null,
     h('header', { className: 'dashboard-heading' },
-      h('div', null, h('div', { className: 'heading-eyebrow' }, 'WORKSPACE / CHANNELS'),
-        h('h1', null, '免费账号渠道'), h('p', null, '连接你的账号，把各家的免费额度汇集到一个 API。'))),
-    h('div', { className: 'ofm_seg', role: 'tablist', 'aria-label': '渠道管理页面' },
-      [['accounts', '登录与账号池'], ['ledger', '渠道用量'], ['logs', '请求日志'], ['tools', '供应商与备份']].map(([id, name]) =>
+      h('div', null, h('div', { className: 'heading-eyebrow' }, tr('工作台 / 渠道', 'WORKSPACE / CHANNELS', 'RUANG KERJA / KANAL')),
+        h('h1', null, tr('免费账号渠道', 'Free account channels', 'Kanal akun gratis')), h('p', null, tr('连接你的账号，把各家的免费额度汇集到一个 API。', 'Connect your accounts and bring free quotas into one API.', 'Hubungkan akun untuk menggabungkan kuota gratis dalam satu API.')))),
+    h('div', { className: 'ofm_seg', role: 'tablist', 'aria-label': tr('渠道管理页面', 'Channel management pages', 'Halaman pengelolaan kanal') },
+      [['accounts', tr('登录与账号池', 'Sign-in and account pool', 'Masuk dan kumpulan akun')], ['ledger', tr('渠道用量', 'Channel usage', 'Penggunaan kanal')], ['logs', tr('请求日志', 'Request log', 'Log permintaan')], ['tools', tr('供应商与备份', 'Providers and backups', 'Penyedia dan cadangan')]].map(([id, name]) =>
         h('button', { key: id, role: 'tab', 'aria-selected': page === id, onClick: () => setPage(id) }, name))),
     page === 'accounts' ? h(ChannelBrowser, { rpc, summary })
       : page === 'ledger' ? h(LedgerPage, { t, ctx, summary })
@@ -136,15 +137,15 @@ function EacPage({ summary }) {
   React.useEffect(() => { login.refresh() }, [login.refresh])
   return h(React.Fragment, null,
     h('header', { className: 'dashboard-heading' },
-      h('div', null, h('div', { className: 'heading-eyebrow' }, 'WORKSPACE / EAC'),
-        h('h1', null, 'EAC 协付渠道'), h('p', null, '使用本机独立授权，连接共享资源池。'))),
+      h('div', null, h('div', { className: 'heading-eyebrow' }, tr('工作台 / EAC', 'WORKSPACE / EAC', 'RUANG KERJA / EAC')),
+        h('h1', null, tr('EAC 协付渠道', 'EAC co-paid lane', 'Kanal EAC patungan')), h('p', null, tr('使用本机独立授权，连接共享资源池。', 'Authorize on this machine to connect to the shared pool.', 'Otorisasi di mesin ini untuk terhubung ke kumpulan bersama.')))),
     h(EacAuth, { t, auth, eacLogin: login }),
     h('div', { className: 'ofm_hero' },
-      h('h3', null, 'EAC 实时资源池'),
-      pool == null ? h('p', null, pool === undefined ? '正在查询资源池…' : '资源池暂时无法查询，请稍后刷新。')
+      h('h3', null, tr('EAC 实时资源池', 'EAC live pool', 'Kumpulan EAC langsung')),
+      pool == null ? h('p', null, pool === undefined ? tr('正在查询资源池…', 'Checking the pool…', 'Memeriksa kumpulan…') : tr('资源池暂时无法查询，请稍后刷新。', 'Pool unavailable; refresh later.', 'Kumpulan tidak tersedia; perbarui nanti.'))
         : h(React.Fragment, null,
           h(Tank, { pct: reading.pct, level: reading.level, size: 'xl' }),
-          h('p', null, `当前并发：${pool.inflight} · 24 小时活跃：${reading.active ?? '未知'} · 容量：${pool.pool ?? '未知'}`),
+          h('p', null, tr(`当前并发：${pool.inflight} · 24 小时活跃：${reading.active ?? '未知'} · 容量：${pool.pool ?? '未知'}`, `Concurrent: ${pool.inflight} · active in 24 h: ${reading.active ?? 'unknown'} · capacity: ${pool.pool ?? 'unknown'}`, `Serentak: ${pool.inflight} · aktif 24 jam: ${reading.active ?? 'tidak diketahui'} · kapasitas: ${pool.pool ?? 'tidak diketahui'}`)),
           h('p', null, capacityText(pool, t)))))
 }
 
